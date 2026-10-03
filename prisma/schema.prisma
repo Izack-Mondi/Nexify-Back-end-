@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Vertical {
+  BUSINESS
+  AGRICULTURE
+  OPPORTUNITY
+}
+
+enum MediaAssetKind {
+  VIDEO
+  IMAGE
+}
+
+enum MediaAssetStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  REJECTED
+}
+
+model User {
+  id              String    @id @default(uuid())
+  fullName        String
+  email           String    @unique
+  phoneNumber     String?
+  country         String?
+  location        String?
+  county          String?
+  interests       String[]
+  status          String    @default("PENDING")
+  emailVerified   Boolean   @default(false)
+  phoneVerified   Boolean   @default(false)
+  passwordHash    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  refreshTokens   RefreshToken[]
+  verificationCodes VerificationCode[]
+  posts           Post[]
+  products        Product[]
+  services        Service[]
+  mediaAssets     MediaAsset[]
+  serviceOfferings ServiceOffering[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model VerificationCode {
+  id        String   @id @default(uuid())
+  code      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   @default("EMAIL_VERIFICATION")
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([code])
+  @@index([userId])
+}
+
+model MediaAsset {
+  id              String            @id @default(uuid())
+  ownerId         String
+  owner           User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  kind            MediaAssetKind
+  status          MediaAssetStatus  @default(UPLOADING)
+  rejectionReason String?
+  mimeType        String
+  sizeBytes       Int
+  durationSec     Float?
+  width           Int?
+  height          Int?
+  storageKey      String
+  hlsManifestKey  String?
+  posterKey       String?
+  previewKey      String?
+  blurhash        String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  demoOfferings   ServiceOffering[]
+  products        Product[]
+  posts           Post[]
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ServiceOffering {
+  id               String      @id @default(uuid())
+  providerId       String
+  provider         User        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  title            String
+  category         String
+  description      String?
+  skills           String[]
+  yearsExperience  Int
+  startingPrice    Float?
+  priceUnit        String?
+  county           String?
+  demoAssetId      String?
+  demoAsset        MediaAsset? @relation(fields: [demoAssetId], references: [id], onDelete: SetNull)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  posts            Post[]
+
+  @@index([providerId])
+}
+
+model Product {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  unit        String
+  category    String
+  location    String?
+  mediaUrl    String?
+  thumbnailUrl String?
+  mediaType   String       @default("IMAGE")
+  mediaAssetId String?
+  mediaAsset  MediaAsset?  @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  sellerId    String
+  seller      User         @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  availability String       @default("AVAILABLE")
+  rating      Float        @default(0)
+  reviews     Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  posts       Post[]
+
+  @@index([sellerId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model Service {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  category        String
+  location        String?
+  price           String?
+  availability    String?
+  experience      String?
+  mediaUrl        String?
+  thumbnailUrl    String?
+  mediaType       String   @default("IMAGE")
+  providerId      String
+  provider        User     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  rating          Float    @default(0)
+  reviews         Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  posts           Post[]
+
+  @@index([providerId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model Post {
+  id            String           @id @default(uuid())
+  authorId      String
+  author        User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type          String           @default("GENERAL")
+  vertical      Vertical
+  caption       String?
+  mediaUrl      String?
+  thumbnailUrl  String?
+  mediaType     String           @default("IMAGE")
+  mediaAssetId  String?
+  mediaAsset    MediaAsset?      @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  productId     String?
+  product       Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  serviceId     String?
+  service       Service?         @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  offeringId    String?
+  offering      ServiceOffering? @relation(fields: [offeringId], references: [id], onDelete: SetNull)
+  likesCount    Int              @default(0)
+  commentsCount Int              @default(0)
+  viewsCount    Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([authorId])
+  @@index([type])
+  @@index([vertical, createdAt(sort: Desc), id])
+  @@index([createdAt(sort: Desc), id])
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([productId])
+  @@index([serviceId])
+  @@index([offeringId])
+}
