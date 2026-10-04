@@ -6,7 +6,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build --verbose
+RUN npm run build 2>&1 || (cat /tmp/build.log 2>/dev/null || true; exit 1)
 
 FROM node:20-alpine AS runtime
 
