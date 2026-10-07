@@ -1,10 +1,11 @@
 import { Injectable, Logger, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service.interface';
-import { FeedInput, FeedConnection, PostEdge, PageInfo, PostType, FeedTab, PostMedia, PostServiceOffering, PlaybackResponse } from './feed.types';
+import { FeedInput, FeedConnection, PostEdge, PageInfo, PostType, FeedTab, PostMedia, PostServiceOffering, PlaybackResponse, PostStatus } from './feed.types';
 import { assignVertical, Vertical } from '../common/vertical-assignment';
 import { MediaAssetStatus, MediaAssetKind } from '../media/media.types';
 import { MediaUrlSigner } from '../storage/media-url-signer.interface';
+import { interleaveFeedEdges } from './feed-interleave';
 
 @Injectable()
 export class FeedService {
@@ -31,11 +32,11 @@ export class FeedService {
     try {
       const decoded = Buffer.from(cursor, 'base64url').toString('utf-8');
       const cursorData = JSON.parse(decoded);
-      
+
       if (cursorData.v !== 1) {
         return null;
       }
-      
+
       return { id: cursorData.i, createdAt: cursorData.c };
     } catch (error) {
       this.logger.error(`Failed to decode cursor: ${error}`);
@@ -43,7 +44,7 @@ export class FeedService {
     }
   }
 
-  async getFeed(input: FeedInput): Promise<FeedConnection> {
+  async getFeed(input: FeedInput, viewerId?: string): Promise<FeedConnection> {
     const first = input.first ?? 10;
     const after = input.after;
     const type = input.type;
@@ -58,7 +59,7 @@ export class FeedService {
 
     // Build where clause
     const where: any = {};
-    
+
     // Use tab if provided, otherwise fall back to deprecated type field
     if (tab && tab !== FeedTab.ALL) {
       where.vertical = tab;
@@ -83,49 +84,97 @@ export class FeedService {
       };
     }
 
+    const readyMediaFilters = [
+      {
+        OR: [
+          { mediaAssetId: null },
+          { mediaAsset: { is: { status: MediaAssetStatus.READY } } },
+        ],
+      },
+      {
+        OR: [
+          { offeringId: null },
+          {
+            offering: {
+              is: {
+                OR: [
+                  { demoAssetId: null },
+                  { demoAsset: { is: { status: MediaAssetStatus.READY } } },
+                ],
+              },
+            },
+          },
+        ],
+      },
+      {
+        OR: [
+          { productId: null },
+          {
+            product: {
+              is: {
+                OR: [
+                  { mediaAssetId: null },
+                  { mediaAsset: { is: { status: MediaAssetStatus.READY } } },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    ];
+    const authorMediaFilters = [
+      {
+        OR: [
+          { mediaAssetId: null },
+          { mediaAsset: { is: { status: { not: MediaAssetStatus.REJECTED } } } },
+        ],
+      },
+      {
+        OR: [
+          { offeringId: null },
+          {
+            offering: {
+              is: {
+                OR: [
+                  { demoAssetId: null },
+                  { demoAsset: { is: { status: { not: MediaAssetStatus.REJECTED } } } },
+                ],
+              },
+            },
+          },
+        ],
+      },
+      {
+        OR: [
+          { productId: null },
+          {
+            product: {
+              is: {
+                OR: [
+                  { mediaAssetId: null },
+                  { mediaAsset: { is: { status: { not: MediaAssetStatus.REJECTED } } } },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    ];
+    const visiblePostFilter = {
+      OR: [
+        { AND: readyMediaFilters },
+        ...(viewerId
+          ? [{ authorId: viewerId, AND: authorMediaFilters }]
+          : []),
+      ],
+    };
+
     // Fetch posts with pagination
     const posts = await this.prisma.post.findMany({
       where: {
         ...where,
         ...cursorFilter,
-        AND: [
-          {
-            OR: [
-              { mediaAssetId: null },
-              { mediaAsset: { is: { status: MediaAssetStatus.READY } } },
-            ],
-          },
-          {
-            OR: [
-              { offeringId: null },
-              {
-                offering: {
-                  is: {
-                    OR: [
-                      { demoAssetId: null },
-                      { demoAsset: { is: { status: MediaAssetStatus.READY } } },
-                    ],
-                  },
-                },
-              },
-            ],
-          },
-          {
-            OR: [
-              { productId: null },
-              {
-                product: {
-                  is: {
-                    OR: [
-                      { mediaAssetId: null },
-                      { mediaAsset: { is: { status: MediaAssetStatus.READY } } },
-                    ],
-                  },
-                },
-              },
-            ],
-          },
-        ],
+        AND: [visiblePostFilter],
       },
       include: {
         author: {
@@ -190,7 +239,13 @@ export class FeedService {
       }
 
       let offering: PostServiceOffering | undefined;
-      if (post.offering && (!post.offering.demoAsset || post.offering.demoAsset.status === MediaAssetStatus.READY)) {
+      const isAuthor = viewerId === post.authorId;
+      if (
+        post.offering &&
+        (!post.offering.demoAsset ||
+          post.offering.demoAsset.status === MediaAssetStatus.READY ||
+          (isAuthor && post.offering.demoAsset.status !== MediaAssetStatus.REJECTED))
+      ) {
         offering = {
           id: post.offering.id,
           title: post.offering.title,
@@ -215,6 +270,7 @@ export class FeedService {
           },
           type: post.type as any,
           vertical: post.vertical as Vertical,
+          status: this.getPostStatus(post),
           caption: post.caption,
           mediaUrl: post.mediaType === 'VIDEO' ? undefined : post.mediaUrl,
           thumbnailUrl: post.thumbnailUrl,
@@ -239,6 +295,9 @@ export class FeedService {
         cursor: this.encodeCursor(post.id, post.createdAt),
       };
     });
+    const responseEdges = tab === FeedTab.ALL
+      ? interleaveFeedEdges(postEdges)
+      : postEdges;
 
     // Create page info
     const pageInfo: PageInfo = {
@@ -247,9 +306,26 @@ export class FeedService {
     };
 
     return {
-      edges: postEdges,
+      edges: responseEdges,
       pageInfo,
     };
+  }
+
+  private getPostStatus(post: {
+    mediaAsset?: { status: string } | null;
+    product?: { mediaAsset?: { status: string } | null } | null;
+    offering?: { demoAsset?: { status: string } | null } | null;
+  }): PostStatus {
+    const mediaStatuses = [
+      post.mediaAsset?.status,
+      post.product?.mediaAsset?.status,
+      post.offering?.demoAsset?.status,
+    ];
+    return mediaStatuses.every(
+      (status) => !status || status === MediaAssetStatus.READY,
+    )
+      ? PostStatus.PUBLISHED
+      : PostStatus.PROCESSING;
   }
 
   async createPost(data: {
@@ -263,21 +339,41 @@ export class FeedService {
     productId?: string;
     serviceId?: string;
   }) {
+    await this.assertActivePoster(data.authorId);
     if (data.mediaAssetId) {
       await this.assertAssetCanBeAttached(data.authorId, data.mediaAssetId);
     }
-    // Determine product category for vertical assignment
     let productCategory: string | undefined;
+    let serviceCategory: string | undefined;
     if (data.productId) {
       const product = await this.prisma.product.findUnique({
         where: { id: data.productId },
-        select: { category: true },
+        select: { category: true, sellerId: true },
       });
-      productCategory = product?.category;
+      if (!product) {
+        throw new BadRequestException('Product not found');
+      }
+      if (product.sellerId !== data.authorId) {
+        throw new UnauthorizedException('You do not own this product');
+      }
+      productCategory = product.category;
     }
 
-    // Assign vertical based on type and product category
-    const vertical = assignVertical(data.type, productCategory);
+    if (data.serviceId) {
+      const service = await this.prisma.service.findUnique({
+        where: { id: data.serviceId },
+        select: { category: true, providerId: true },
+      });
+      if (!service) {
+        throw new BadRequestException('Service not found');
+      }
+      if (service.providerId !== data.authorId) {
+        throw new UnauthorizedException('You do not own this service');
+      }
+      serviceCategory = service.category;
+    }
+
+    const vertical = assignVertical(data.type, productCategory, serviceCategory);
 
     return this.prisma.post.create({
       data: {
@@ -313,6 +409,7 @@ export class FeedService {
     mediaAssetId?: string;
     sellerId: string;
   }) {
+    await this.assertActivePoster(data.sellerId);
     if (data.mediaAssetId) {
       await this.assertAssetCanBeAttached(data.sellerId, data.mediaAssetId);
     }
@@ -347,6 +444,7 @@ export class FeedService {
     mediaType?: string;
     providerId: string;
   }) {
+    await this.assertActivePoster(data.providerId);
     return this.prisma.service.create({
       data: {
         name: data.name,
@@ -364,7 +462,15 @@ export class FeedService {
     });
   }
 
-  async getPostContact(postId: string) {
+  async getPostContact(postId: string, viewerId: string) {
+    const viewer = await this.prisma.user.findUnique({
+      where: { id: viewerId },
+      select: { status: true },
+    });
+    if (!viewer || viewer.status !== 'ACTIVE') {
+      throw new UnauthorizedException('An active account is required to view post contact details');
+    }
+
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       include: {
@@ -375,11 +481,31 @@ export class FeedService {
             phoneNumber: true,
           },
         },
+        mediaAsset: { select: { status: true } },
+        product: {
+          include: {
+            mediaAsset: { select: { status: true } },
+          },
+        },
+        offering: {
+          include: {
+            demoAsset: { select: { status: true } },
+          },
+        },
       },
     });
 
     if (!post) {
-      throw new Error('Post not found');
+      throw new BadRequestException('Post not found');
+    }
+
+    const mediaStatuses = [
+      post.mediaAsset?.status,
+      post.product?.mediaAsset?.status,
+      post.offering?.demoAsset?.status,
+    ];
+    if (mediaStatuses.some((status) => status && status !== MediaAssetStatus.READY)) {
+      throw new BadRequestException('Contact details are unavailable for an unpublished post');
     }
 
     return {
@@ -387,6 +513,58 @@ export class FeedService {
       fullName: post.author.fullName,
       phoneNumber: post.author.phoneNumber,
     };
+  }
+
+  async recordView(postId: string, viewerId: string): Promise<boolean> {
+    return this.prisma.$transaction(async (transaction) => {
+      const post = await transaction.post.findUnique({
+        where: { id: postId },
+        select: {
+          id: true,
+          authorId: true,
+          mediaAsset: { select: { status: true } },
+          product: {
+            select: { mediaAsset: { select: { status: true } } },
+          },
+          offering: {
+            select: { demoAsset: { select: { status: true } } },
+          },
+        },
+      });
+
+      if (!post) {
+        throw new BadRequestException('Post not found');
+      }
+
+      const mediaStatuses = [
+        post.mediaAsset?.status,
+        post.product?.mediaAsset?.status,
+        post.offering?.demoAsset?.status,
+      ];
+      const isRejected = mediaStatuses.some(
+        (status) => status === MediaAssetStatus.REJECTED,
+      );
+      const allReadyOrMissing = mediaStatuses.every(
+        (status) => !status || status === MediaAssetStatus.READY,
+      );
+      if (isRejected || (!allReadyOrMissing && post.authorId !== viewerId)) {
+        throw new BadRequestException('Post is not visible to this user');
+      }
+
+      const view = await transaction.postView.createMany({
+        data: [{ postId, userId: viewerId }],
+        skipDuplicates: true,
+      });
+      if (view.count === 0) {
+        return false;
+      }
+
+      await transaction.post.update({
+        where: { id: postId },
+        data: { viewsCount: { increment: 1 } },
+      });
+      return true;
+    });
   }
 
   async getPlayback(postId: string): Promise<PlaybackResponse> {
@@ -433,4 +611,14 @@ export class FeedService {
       throw new BadRequestException('Media asset must be processing or ready');
     }
   }
-} 
+
+  private async assertActivePoster(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+    if (!user || user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('An active account is required to create posts');
+    }
+  }
+}

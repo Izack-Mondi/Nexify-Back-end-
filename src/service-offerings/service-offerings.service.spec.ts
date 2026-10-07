@@ -1,6 +1,7 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ServiceOfferingsService } from './service-offerings.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Vertical } from '../common/vertical-assignment';
 
 describe('ServiceOfferingsService', () => {
   let service: ServiceOfferingsService;
@@ -14,6 +15,7 @@ describe('ServiceOfferingsService', () => {
     };
     prisma = {
       mediaAsset: { findUnique: jest.fn() },
+      user: { findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE' }) },
       $transaction: jest.fn((callback) => callback(transaction)),
     };
     service = new ServiceOfferingsService(prisma as PrismaService);
@@ -23,6 +25,7 @@ describe('ServiceOfferingsService', () => {
     const result = await service.createServiceOffering('provider-1', {
       title: 'Irrigation installation',
       category: 'irrigation',
+      vertical: Vertical.AGRICULTURE,
       skills: ['Drip systems'],
       yearsExperience: 4,
       county: 'Nairobi',
@@ -46,14 +49,16 @@ describe('ServiceOfferingsService', () => {
     await expect(service.createServiceOffering('user-b', {
       title: 'Photography',
       category: 'photography',
+      vertical: Vertical.BUSINESS,
       skills: [],
       yearsExperience: 0,
+      county: 'Nairobi',
       demoAssetId: 'asset-1',
     })).rejects.toThrow(UnauthorizedException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('allows a processing video asset and creates a post that remains feed-hidden', async () => {
+  it('stores the selected vertical even when category guessing differs', async () => {
     prisma.mediaAsset.findUnique.mockResolvedValue({
       id: 'asset-1',
       ownerId: 'provider-1',
@@ -64,13 +69,41 @@ describe('ServiceOfferingsService', () => {
     await service.createServiceOffering('provider-1', {
       title: 'Photography',
       category: 'photography',
+      vertical: Vertical.AGRICULTURE,
       skills: [],
       yearsExperience: 2,
+      county: 'Nairobi',
       demoAssetId: 'asset-1',
     });
 
     expect(transaction.post.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ mediaAssetId: 'asset-1', vertical: 'BUSINESS' }),
+      data: expect.objectContaining({ mediaAssetId: 'asset-1', vertical: 'AGRICULTURE' }),
     });
+  });
+
+  it('rejects posting by a non-active account', async () => {
+    prisma.user.findUnique.mockResolvedValue({ status: 'PENDING' });
+
+    await expect(service.createServiceOffering('provider-1', {
+      title: 'Photography',
+      category: 'photography',
+      vertical: Vertical.BUSINESS,
+      skills: [],
+      yearsExperience: 0,
+      county: 'Nairobi',
+    })).rejects.toThrow(UnauthorizedException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects the opportunity vertical for service offerings', async () => {
+    await expect(service.createServiceOffering('provider-1', {
+      title: 'Photography',
+      category: 'photography',
+      vertical: Vertical.OPPORTUNITY,
+      skills: [],
+      yearsExperience: 0,
+      county: 'Nairobi',
+    })).rejects.toThrow(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

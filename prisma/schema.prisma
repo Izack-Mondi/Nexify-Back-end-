@@ -26,28 +26,29 @@ enum MediaAssetStatus {
 }
 
 model User {
-  id              String    @id @default(uuid())
-  fullName        String
-  email           String    @unique
-  phoneNumber     String?
-  country         String?
-  location        String?
-  county          String?
-  interests       String[]
-  status          String    @default("PENDING")
-  emailVerified   Boolean   @default(false)
-  phoneVerified   Boolean   @default(false)
-  passwordHash    String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            String   @id @default(uuid())
+  fullName      String
+  email         String   @unique
+  phoneNumber   String?
+  country       String?
+  location      String?
+  county        String?
+  interests     String[]
+  status        String   @default("PENDING")
+  emailVerified Boolean  @default(false)
+  phoneVerified Boolean  @default(false)
+  passwordHash  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  refreshTokens   RefreshToken[]
+  refreshTokens     RefreshToken[]
   verificationCodes VerificationCode[]
-  posts           Post[]
-  products        Product[]
-  services        Service[]
-  mediaAssets     MediaAsset[]
-  serviceOfferings ServiceOffering[]
+  posts             Post[]
+  products          Product[]
+  services          Service[]
+  mediaAssets       MediaAsset[]
+  serviceOfferings  ServiceOffering[]
+  postViews         PostView[]
 }
 
 model RefreshToken {
@@ -77,11 +78,11 @@ model VerificationCode {
 }
 
 model MediaAsset {
-  id              String            @id @default(uuid())
+  id              String           @id @default(uuid())
   ownerId         String
-  owner           User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner           User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   kind            MediaAssetKind
-  status          MediaAssetStatus  @default(UPLOADING)
+  status          MediaAssetStatus @default(UPLOADING)
   rejectionReason String?
   mimeType        String
   sizeBytes       Int
@@ -93,61 +94,61 @@ model MediaAsset {
   posterKey       String?
   previewKey      String?
   blurhash        String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  demoOfferings   ServiceOffering[]
-  products        Product[]
-  posts           Post[]
+  demoOfferings ServiceOffering[]
+  products      Product[]
+  posts         Post[]
 
   @@index([ownerId, createdAt])
   @@index([status, createdAt])
 }
 
 model ServiceOffering {
-  id               String      @id @default(uuid())
-  providerId       String
-  provider         User        @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  title            String
-  category         String
-  description      String?
-  skills           String[]
-  yearsExperience  Int
-  startingPrice    Float?
-  priceUnit        String?
-  county           String?
-  demoAssetId      String?
-  demoAsset        MediaAsset? @relation(fields: [demoAssetId], references: [id], onDelete: SetNull)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  id              String      @id @default(uuid())
+  providerId      String
+  provider        User        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  title           String
+  category        String
+  description     String?
+  skills          String[]
+  yearsExperience Int
+  startingPrice   Float?
+  priceUnit       String?
+  county          String?
+  demoAssetId     String?
+  demoAsset       MediaAsset? @relation(fields: [demoAssetId], references: [id], onDelete: SetNull)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  posts            Post[]
+  posts Post[]
 
   @@index([providerId])
 }
 
 model Product {
-  id          String       @id @default(uuid())
-  name        String
-  description String?
-  price       Float
-  unit        String
-  category    String
-  location    String?
-  mediaUrl    String?
+  id           String      @id @default(uuid())
+  name         String
+  description  String?
+  price        Float
+  unit         String
+  category     String
+  location     String?
+  mediaUrl     String?
   thumbnailUrl String?
-  mediaType   String       @default("IMAGE")
+  mediaType    String      @default("IMAGE")
   mediaAssetId String?
-  mediaAsset  MediaAsset?  @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
-  sellerId    String
-  seller      User         @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  availability String       @default("AVAILABLE")
-  rating      Float        @default(0)
-  reviews     Int          @default(0)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  mediaAsset   MediaAsset? @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  sellerId     String
+  seller       User        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  availability String      @default("AVAILABLE")
+  rating       Float       @default(0)
+  reviews      Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
-  posts       Post[]
+  posts Post[]
 
   @@index([sellerId])
   @@index([category])
@@ -155,25 +156,25 @@ model Product {
 }
 
 model Service {
-  id              String   @id @default(uuid())
-  name            String
-  description     String?
-  category        String
-  location        String?
-  price           String?
-  availability    String?
-  experience      String?
-  mediaUrl        String?
-  thumbnailUrl    String?
-  mediaType       String   @default("IMAGE")
-  providerId      String
-  provider        User     @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  rating          Float    @default(0)
-  reviews         Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  category     String
+  location     String?
+  price        String?
+  availability String?
+  experience   String?
+  mediaUrl     String?
+  thumbnailUrl String?
+  mediaType    String   @default("IMAGE")
+  providerId   String
+  provider     User     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  rating       Float    @default(0)
+  reviews      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  posts           Post[]
+  posts Post[]
 
   @@index([providerId])
   @@index([category])
@@ -203,6 +204,7 @@ model Post {
   viewsCount    Int              @default(0)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
+  views         PostView[]
 
   @@index([authorId])
   @@index([type])
@@ -212,4 +214,15 @@ model Post {
   @@index([productId])
   @@index([serviceId])
   @@index([offeringId])
+}
+
+model PostView {
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, userId])
+  @@index([userId, createdAt])
 }

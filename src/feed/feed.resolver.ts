@@ -12,20 +12,37 @@ export class FeedResolver {
 
   @Query(() => FeedConnection)
   @UseGuards(GqlAuthGuard)
-  async homeFeed(@Args('input') input: FeedInput): Promise<FeedConnection> {
-    return this.feedService.getFeed(input);
+  async homeFeed(
+    @CurrentUser() user: { sub: string },
+    @Args('input') input: FeedInput,
+  ): Promise<FeedConnection> {
+    return this.feedService.getFeed(input, user.sub);
   }
 
   @Query(() => PostContact)
   @UseGuards(GqlAuthGuard)
-  async postContact(@Args('postId') postId: string): Promise<PostContact> {
-    return this.feedService.getPostContact(postId);
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async postContact(
+    @CurrentUser() user: { sub: string },
+    @Args('postId') postId: string,
+  ): Promise<PostContact> {
+    return this.feedService.getPostContact(postId, user.sub);
   }
 
   @Query(() => PlaybackResponse)
   @UseGuards(GqlAuthGuard)
   async playback(@Args('postId', { type: () => ID }) postId: string): Promise<PlaybackResponse> {
     return this.feedService.getPlayback(postId);
+  }
+
+  @Mutation(() => Boolean)
+  @UseGuards(GqlAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  async recordView(
+    @CurrentUser() user: { sub: string },
+    @Args('postId', { type: () => ID }) postId: string,
+  ): Promise<boolean> {
+    return this.feedService.recordView(postId, user.sub);
   }
 
   @Mutation(() => String)
