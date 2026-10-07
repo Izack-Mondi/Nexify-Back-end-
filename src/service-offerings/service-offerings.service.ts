@@ -2,8 +2,8 @@ import { Injectable, BadRequestException, UnauthorizedException, Logger } from '
 import { PrismaService } from '../prisma/prisma.service';
 import { MediaAssetKind, MediaAssetStatus } from '../media/media.types';
 import { CreateServiceOfferingInput, ServiceOffering } from './service-offerings.types';
-import { assignVertical, Vertical } from '../common/vertical-assignment';
 import { KENYA_COUNTIES } from '../common/kenya-counties';
+import { Vertical } from '../common/vertical-assignment';
 
 @Injectable()
 export class ServiceOfferingsService {
@@ -17,8 +17,19 @@ export class ServiceOfferingsService {
     userId: string,
     input: CreateServiceOfferingInput,
   ): Promise<{ offeringId: string; postId: string }> {
-    // Validate county
-    if (input.county && !KENYA_COUNTIES.includes(input.county as any)) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+    if (!user || user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('An active account is required to create service offerings');
+    }
+
+    if (input.vertical !== Vertical.BUSINESS && input.vertical !== Vertical.AGRICULTURE) {
+      throw new BadRequestException('Service offering vertical must be BUSINESS or AGRICULTURE');
+    }
+
+    if (!KENYA_COUNTIES.some((county) => county === input.county)) {
       throw new BadRequestException(`Invalid county. Must be one of: ${KENYA_COUNTIES.join(', ')}`);
     }
 
@@ -44,9 +55,6 @@ export class ServiceOfferingsService {
       }
     }
 
-    // Determine vertical based on category
-    const vertical = assignVertical('SERVICE', undefined, input.category);
-
     const result = await this.prisma.$transaction(async (transaction) => {
       const offering = await transaction.serviceOffering.create({
         data: {
@@ -67,7 +75,7 @@ export class ServiceOfferingsService {
         data: {
           authorId: userId,
           type: 'GENERAL',
-          vertical,
+          vertical: input.vertical,
           caption: input.description || input.title,
           mediaAssetId: input.demoAssetId,
           offeringId: offering.id,

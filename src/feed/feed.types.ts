@@ -39,6 +39,15 @@ registerEnumType(MediaType, {
   name: 'MediaType',
 });
 
+export enum PostStatus {
+  PUBLISHED = 'PUBLISHED',
+  PROCESSING = 'PROCESSING',
+}
+
+registerEnumType(PostStatus, {
+  name: 'PostStatus',
+});
+
 @ObjectType()
 export class PostAuthor {
   @Field(() => ID)
@@ -211,6 +220,9 @@ export class Post {
 
   @Field(() => Vertical)
   vertical: Vertical;
+
+  @Field(() => PostStatus)
+  status: PostStatus;
 
   @Field({ nullable: true })
   caption?: string;
