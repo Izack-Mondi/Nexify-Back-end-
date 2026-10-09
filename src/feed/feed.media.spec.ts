@@ -58,7 +58,7 @@ describe('FeedService media behavior', () => {
       updatedAt: createdAt,
     }]);
 
-    const result = await feedService.getFeed({ first: 10 });
+    const result = await (feedService as any).getFeed({ first: 10 }, 'user-1');
     const query = prisma.post.findMany.mock.calls[0][0];
 
     expect(prisma.post.findMany).toHaveBeenCalledTimes(1);
@@ -80,7 +80,7 @@ describe('FeedService media behavior', () => {
       status: 'READY',
     });
 
-    await expect(feedService.createPost({
+    await expect((feedService as any).createPost({
       authorId: 'user-b',
       type: 'GENERAL',
       mediaAssetId: 'asset-1',

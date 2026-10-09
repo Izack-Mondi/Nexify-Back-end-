@@ -1,6 +1,7 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { ServiceOfferingsService } from './service-offerings.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Vertical } from '../common/vertical-assignment';
 
 describe('ServiceOfferingsService', () => {
   let service: ServiceOfferingsService;
@@ -19,20 +20,47 @@ describe('ServiceOfferingsService', () => {
     service = new ServiceOfferingsService(prisma as PrismaService);
   });
 
-  it('creates an agriculture service offering and its feed post atomically', async () => {
+  it('creates an agriculture service offering and its feed post atomically with user-chosen vertical', async () => {
     const result = await service.createServiceOffering('provider-1', {
       title: 'Irrigation installation',
       category: 'irrigation',
       skills: ['Drip systems'],
       yearsExperience: 4,
       county: 'Nairobi',
+      vertical: Vertical.AGRICULTURE,
     });
 
     expect(result).toEqual({ offeringId: 'offering-1', postId: 'post-1' });
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(transaction.post.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ vertical: 'AGRICULTURE', offeringId: 'offering-1' }),
+      data: expect.objectContaining({ vertical: Vertical.AGRICULTURE, offeringId: 'offering-1' }),
     });
+  });
+
+  it('creates a business service offering with user-chosen vertical', async () => {
+    const result = await service.createServiceOffering('provider-1', {
+      title: 'Web development',
+      category: 'web development',
+      skills: ['React', 'Node.js'],
+      yearsExperience: 5,
+      vertical: Vertical.BUSINESS,
+    });
+
+    expect(result).toEqual({ offeringId: 'offering-1', postId: 'post-1' });
+    expect(transaction.post.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ vertical: Vertical.BUSINESS, offeringId: 'offering-1' }),
+    });
+  });
+
+  it('rejects OPPORTUNITY vertical for service offerings', async () => {
+    await expect(service.createServiceOffering('provider-1', {
+      title: 'Job opportunity',
+      category: 'jobs',
+      skills: [],
+      yearsExperience: 0,
+      vertical: Vertical.OPPORTUNITY,
+    })).rejects.toThrow(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('rejects a demo asset owned by another user', async () => {
@@ -49,6 +77,7 @@ describe('ServiceOfferingsService', () => {
       skills: [],
       yearsExperience: 0,
       demoAssetId: 'asset-1',
+      vertical: Vertical.BUSINESS,
     })).rejects.toThrow(UnauthorizedException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -67,10 +96,11 @@ describe('ServiceOfferingsService', () => {
       skills: [],
       yearsExperience: 2,
       demoAssetId: 'asset-1',
+      vertical: Vertical.BUSINESS,
     });
 
     expect(transaction.post.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ mediaAssetId: 'asset-1', vertical: 'BUSINESS' }),
+      data: expect.objectContaining({ mediaAssetId: 'asset-1', vertical: Vertical.BUSINESS }),
     });
   });
 });

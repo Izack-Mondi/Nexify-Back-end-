@@ -1,6 +1,8 @@
-src/prisma/contract.json linguist-generated
-src/prisma/contract.d.ts linguist-generated
-src/prisma/ops.json linguist-generated
-src/prisma/migration.json linguist-generated
-migrations/snapshots/**/contract.json linguist-generated
-migrations/snapshots/**/contract.d.ts linguist-generated
+# Auto detect text files and normalize line endings to LF
+* text=auto
+
+# Force LF for SQL files (migrations)
+*.sql text eol=lf
+
+# Force LF for shell scripts
+*.sh text eol=lf

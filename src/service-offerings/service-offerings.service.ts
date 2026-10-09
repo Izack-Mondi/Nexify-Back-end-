@@ -22,6 +22,11 @@ export class ServiceOfferingsService {
       throw new BadRequestException(`Invalid county. Must be one of: ${KENYA_COUNTIES.join(', ')}`);
     }
 
+    // Validate vertical is BUSINESS or AGRICULTURE (not OPPORTUNITY)
+    if (input.vertical === Vertical.OPPORTUNITY) {
+      throw new BadRequestException('Service offerings cannot use OPPORTUNITY vertical. Use BUSINESS or AGRICULTURE.');
+    }
+
     // Validate demo asset ownership if provided
     if (input.demoAssetId) {
       const asset = await this.prisma.mediaAsset.findUnique({
@@ -44,8 +49,8 @@ export class ServiceOfferingsService {
       }
     }
 
-    // Determine vertical based on category
-    const vertical = assignVertical('SERVICE', undefined, input.category);
+    // Use the user-chosen vertical explicitly
+    const vertical = input.vertical;
 
     const result = await this.prisma.$transaction(async (transaction) => {
       const offering = await transaction.serviceOffering.create({

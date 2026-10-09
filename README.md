@@ -1,6 +1,6 @@
-# Nexify Backend
+# NeuralBiz Backend
 
-NestJS 12 GraphQL API and separate BullMQ worker for Nexify media uploads and feeds.
+NestJS 12 GraphQL API and separate BullMQ worker for NeuralBiz media uploads and feeds.
 
 ## Media GraphQL API
 

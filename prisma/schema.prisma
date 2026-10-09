@@ -48,6 +48,7 @@ model User {
   services        Service[]
   mediaAssets     MediaAsset[]
   serviceOfferings ServiceOffering[]
+  postViews       PostView[]
 }
 
 model RefreshToken {
@@ -204,6 +205,8 @@ model Post {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
+  postViews     PostView[]
+
   @@index([authorId])
   @@index([type])
   @@index([vertical, createdAt(sort: Desc), id])
@@ -212,4 +215,18 @@ model Post {
   @@index([productId])
   @@index([serviceId])
   @@index([offeringId])
+}
+
+model PostView {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@index([createdAt])
 }

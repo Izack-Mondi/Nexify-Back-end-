@@ -33,7 +33,7 @@ export class SmsService {
       try {
         this.logger.log(`Using Twilio client to send SMS...`);
         await this.client.messages.create({
-          body: `Your Nexify verification code is: ${code}`,
+          body: `Your NeuralBiz verification code is: ${code}`,
           from: this.fromNumber,
           to: phoneNumber,
         });

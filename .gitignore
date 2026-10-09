@@ -36,3 +36,7 @@ yarn-error.log*
 # Misc
 .cache/
 .temp/
+
+# Migration files
+migration-status.txt
+production-structure.sql

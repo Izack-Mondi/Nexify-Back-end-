@@ -1,6 +1,6 @@
-# Nexify Backend - Authentication Module Setup
+# NeuralBiz Backend - Authentication Module Setup
 
-This document provides setup instructions for the Nexify Authentication Module backend built with NestJS, GraphQL (Apollo), Prisma, and PostgreSQL.
+This document provides setup instructions for the NeuralBiz Authentication Module backend built with NestJS, GraphQL (Apollo), Prisma, and PostgreSQL.
 
 ## Prerequisites
 

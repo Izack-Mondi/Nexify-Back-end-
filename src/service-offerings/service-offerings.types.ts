@@ -1,6 +1,7 @@
 import { Field, ObjectType, InputType, ID, Int, Float } from '@nestjs/graphql';
-import { IsNotEmpty, IsString, IsOptional, IsArray, IsInt, IsNumber, IsIn, Min, Max, ArrayMaxSize, Length } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsArray, IsInt, IsNumber, IsIn, Min, Max, ArrayMaxSize, Length, IsEnum } from 'class-validator';
 import { KENYA_COUNTIES } from '../common/kenya-counties';
+import { Vertical } from '../common/vertical-assignment';
 
 @ObjectType()
 export class ServiceOffering {
@@ -92,4 +93,12 @@ export class CreateServiceOfferingInput {
   @Field(() => ID, { nullable: true })
   @IsOptional()
   demoAssetId?: string;
+
+  @Field(() => Vertical)
+  @IsNotEmpty()
+  @IsEnum(Vertical, {
+    message: 'Vertical must be either BUSINESS or AGRICULTURE',
+  })
+  @IsString()
+  vertical: Vertical;
 }

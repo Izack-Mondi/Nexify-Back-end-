@@ -12,14 +12,21 @@ export class FeedResolver {
 
   @Query(() => FeedConnection)
   @UseGuards(GqlAuthGuard)
-  async homeFeed(@Args('input') input: FeedInput): Promise<FeedConnection> {
-    return this.feedService.getFeed(input);
+  async homeFeed(
+    @CurrentUser() user: any,
+    @Args('input') input: FeedInput,
+  ): Promise<FeedConnection> {
+    return this.feedService.getFeed(input, user.sub);
   }
 
   @Query(() => PostContact)
   @UseGuards(GqlAuthGuard)
-  async postContact(@Args('postId') postId: string): Promise<PostContact> {
-    return this.feedService.getPostContact(postId);
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async postContact(
+    @CurrentUser() user: any,
+    @Args('postId') postId: string,
+  ): Promise<PostContact> {
+    return this.feedService.getPostContact(postId, user.sub);
   }
 
   @Query(() => PlaybackResponse)
@@ -88,6 +95,25 @@ export class FeedResolver {
     });
 
     return product.id;
+  }
+
+  @Mutation(() => String)
+  @UseGuards(GqlAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  async recordView(
+    @CurrentUser() user: any,
+    @Args('postId', { type: () => ID }) postId: string,
+  ): Promise<string> {
+    return this.feedService.recordView(postId, user.sub);
+  }
+
+  @Query(() => [PlaybackResponse])
+  @UseGuards(GqlAuthGuard)
+  async playbacks(@Args('postIds', { type: () => [ID] }) postIds: string[]): Promise<PlaybackResponse[]> {
+    if (postIds.length > 3) {
+      throw new Error('Maximum 3 post IDs allowed for prefetching');
+    }
+    return this.feedService.getPlaybacks(postIds);
   }
 
   @Mutation(() => String)

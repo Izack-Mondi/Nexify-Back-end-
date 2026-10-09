@@ -3,12 +3,12 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: nexify-postgres
+    container_name: neuralbiz-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: nexify
-      POSTGRES_PASSWORD: nexify_password
-      POSTGRES_DB: nexify
+      POSTGRES_USER: neuralbiz
+      POSTGRES_PASSWORD: neuralbiz_password
+      POSTGRES_DB: neuralbiz
     ports:
       - "5432:5432"
     volumes:
@@ -21,7 +21,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: nexify-redis
+    container_name: neuralbiz-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
